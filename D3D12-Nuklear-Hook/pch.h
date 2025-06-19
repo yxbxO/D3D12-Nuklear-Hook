@@ -8,7 +8,10 @@
 #define PCH_H
 
 // add headers that you want to pre-compile here
-#include "framework.h"
+#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+// Windows Header Files
+#include <windows.h>
+
 #include <winternl.h>
 #include <memoryapi.h>
 #include <string>
@@ -18,8 +21,6 @@
 #include <format>
 #include <vector>
 #include <optional>
-
-#include <dxgi1_4.h>
 #include <d3d12.h>
 
 #include "mem/mem.h"

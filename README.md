@@ -1,13 +1,13 @@
 # D3D12 Nuklear Hook
 
-Universal DirectX 12 hook with Nuklear immediate-mode GUI for overlay development and runtime modification.
+Universal DirectX 12 hook with [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) immediate-mode GUI for overlay development and runtime modification.
 
 ![D3D12 Hello Triangle Demo](2025-06-19%2004_18_01-D3D12%20Hello%20Triangle.png)
 
 ## Features
 
 * DirectX 12 integration with native D3D12 rendering pipeline
-* Nuklear immediate-mode GUI with minimal overhead
+* [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) immediate-mode GUI with minimal overhead
 * Custom VMT (Virtual Method Table) hooking without external dependencies
 * Thread-safe design for multi-threaded applications
 * Automatic SwapChain and CommandQueue detection
@@ -16,7 +16,7 @@ Universal DirectX 12 hook with Nuklear immediate-mode GUI for overlay developmen
 
 ## Usage
 
-Call the hook initialization in your DLL injection process. The library will automatically discover D3D12 resources and inject the Nuklear GUI overlay.
+Call the hook initialization in your DLL injection process. The library will automatically discover D3D12 resources and inject the [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) GUI overlay.
 
 ## How it works
 
@@ -26,9 +26,11 @@ We use a multi-stage hooking approach:
 
 1. **Discovery Phase**: Hook `QueryPerformanceCounter` import to detect SwapChain creation
 2. **Attachment Phase**: Install VMT hooks on discovered D3D12 interfaces  
-3. **Rendering Phase**: Intercept `Present` calls to inject Nuklear UI
+3. **Rendering Phase**: Intercept `Present` calls to inject [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) UI
 
-The point is to get pointers to the D3D12 SwapChain and CommandQueue interfaces for hooking. We hook into `Present()` where we submit our UI rendering commands. See code used in D3D12 backend hook.
+**Note**: QPC hooking is a quick method that may slip basic anticheat detection but carries risk of being caught by advanced systems. For improved stealth, consider using codecave/trampoline techniques where hooks point to legit memory regions instead of directly to your module. Tested successfully on protected D3D12 applications.
+
+The implementation obtains pointers to the D3D12 SwapChain and CommandQueue interfaces for hooking. The UI rendering commands are submitted during `Present()` calls to ensure proper integration with the application's rendering pipeline.
 
 ## Compilation
 
@@ -48,7 +50,7 @@ The point is to get pointers to the D3D12 SwapChain and CommandQueue interfaces 
 
 * **Windows SDK 10.0+** - Required for D3D12 and DXGI headers
 * **Visual Studio 2022** - C++23 standard library features
-* **Nuklear** - Embedded immediate-mode GUI library (header-only)
+* **[Nuklear](https://github.com/Immediate-Mode-UI/Nuklear)** - Embedded immediate-mode GUI library (header-only)
 
 ## Known Issues
 
@@ -71,7 +73,7 @@ This project is licensed under the MIT License.
 
 ## Acknowledgments
 
-* **Nuklear** - Immediate mode GUI library by Micha Mettke
+* **[Nuklear](https://github.com/Immediate-Mode-UI/Nuklear)** - Immediate mode GUI library by Micha Mettke
 * **Microsoft** - DirectX 12 graphics API
 * Inspired by various hooking techniques and D3D12 community resources
 

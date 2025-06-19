@@ -322,8 +322,9 @@ void D3D12Renderer::draw() {
         static int property = 20;
 
         nk_layout_row_static(m_nk_ctx, 30, 80, 1);
-        if (nk_button_label(m_nk_ctx, "button"))
-            fprintf(stdout, "button pressed\n");
+        if (nk_button_label(m_nk_ctx, "button")) {
+            // Button pressed - implement functionality here
+        }
         nk_layout_row_dynamic(m_nk_ctx, 30, 2);
         if (nk_option_label(m_nk_ctx, "easy", op == EASY)) op = EASY;
         if (nk_option_label(m_nk_ctx, "hard", op == HARD)) op = HARD;

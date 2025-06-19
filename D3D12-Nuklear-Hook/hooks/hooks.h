@@ -44,13 +44,16 @@ struct Hook {
 		return true;
 	}
 	
-	//TODO: Uninstall hook procedure
+	/**
+	 * @brief Remove hook and re-install original pointer
+	 */
 	void uninstall() {
 		target = mem::swap_vmt(p_table, original, index);
 
 		p_table = target = original = nullptr;
 		installed = false;
 	}
+
 	/**
 	 * @brief Get original function as specific type
 	 */
