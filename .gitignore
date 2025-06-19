@@ -1,0 +1,24 @@
+# Visual Studio generated files
+.vs/
+*.vcxproj.user
+*.vcxproj.filters.user
+
+# Build outputs
+x64/
+x86/
+Debug/
+Release/
+ARM/
+ARM64/
+
+# Intermediate files
+*.obj
+*.pch
+*.iobj
+*.ipdb
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
