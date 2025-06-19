@@ -1,5 +1,6 @@
 #include "pch.h"
 
+void* qpc_import = nullptr;
 static void on_attach(LPVOID lpParameter) {
     mem::d_log("[DllMain] Starting D3D12 Nuklear Hook...");
 
@@ -10,15 +11,15 @@ static void on_attach(LPVOID lpParameter) {
         return;
     }
 
-    //static because needed for removing hook
-    static auto import = hdxgi.get_import("QueryPerformanceCounter");
-    if (!import) {
+    // Global because needed for removing hook later on.
+    qpc_import = hdxgi.get_import("QueryPerformanceCounter");
+    if (!qpc_import) {
         mem::d_log("[DllMain] Failed to find QueryPerformanceCounter import");
         return;
     }
 
     // Install QPC hook to discover SwapChain and hook Present & ResizeBuffers
-    g_qpc_hook.install_import(&import, reinterpret_cast<void*>(hooks::QueryPerformanceCounter_hk));
+    g_qpc_hook.install_import(&qpc_import, reinterpret_cast<void*>(hooks::QueryPerformanceCounter_hk));
 
     mem::d_log("[DllMain] Hook initialization complete");
 }

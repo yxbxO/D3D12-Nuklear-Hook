@@ -89,18 +89,18 @@ void D3D12Renderer::release_swap_chain_buffers()
     if (!m_rtv_buffer_count || !m_rtv_buffers)
         return;
 
-    mem::d_log("releasing swap_chain buffers");
+    mem::d_log("[D3D12Renderer] Releasing swap_chain buffers");
 
     // Release all render target buffers
     for (UINT i = 0; i < m_rtv_buffer_count; i++) {
         if (m_rtv_buffers[i]) {
-            mem::d_log("releasing buffer : {}", i);
+            mem::d_log("[D3D12Renderer] Releasing buffer: {}", i);
             m_rtv_buffers[i]->Release();
             m_rtv_buffers[i] = nullptr;
         }
     }
 
-    mem::d_log("release_swap_chain_buffers DONE");
+    mem::d_log("[D3D12Renderer] Release swap_chain buffers complete");
 }
 
 void D3D12Renderer::get_swap_chain_buffers(UINT width, UINT height)
@@ -110,15 +110,15 @@ void D3D12Renderer::get_swap_chain_buffers(UINT width, UINT height)
 
     D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle = m_rtv_descriptor_heap->GetCPUDescriptorHandleForHeapStart();
 
-    mem::d_log("Allocating {} buffers", m_rtv_buffer_count);
+    mem::d_log("[D3D12Renderer] Allocating {} buffers", m_rtv_buffer_count);
 
     for (UINT i = 0; i < m_rtv_buffer_count; i++)
     {
-        mem::d_log("Creating buffer : {}", i);
+        mem::d_log("[D3D12Renderer] Creating buffer: {}", i);
         HRESULT hr = m_swap_chain->GetBuffer(i, IID_PPV_ARGS(&m_rtv_buffers[i]));
         if (FAILED(hr))
         {
-            mem::d_log("get_swap_chain_buffers: GetBuffer {} FAILED", i);
+            mem::d_log("[D3D12Renderer] GetBuffer {} failed", i);
             continue;
         }
 
@@ -127,7 +127,7 @@ void D3D12Renderer::get_swap_chain_buffers(UINT width, UINT height)
         descriptor_handle.ptr += m_rtv_desc_increment;
     }
 
-    mem::d_log("get_swap_chain_buffers DONE for {} buffers", m_rtv_buffer_count);
+    mem::d_log("[D3D12Renderer] Get swap_chain buffers complete for {} buffers", m_rtv_buffer_count);
     
     if (width || height)
     {
@@ -137,7 +137,7 @@ void D3D12Renderer::get_swap_chain_buffers(UINT width, UINT height)
 
 bool D3D12Renderer::initialize() {
     if (m_shutdown) {
-        mem::d_log("initialize: shutdown flag set");
+        mem::d_log("[D3D12Renderer] Initialize: shutdown flag set");
         return false;
     }
 
@@ -146,25 +146,25 @@ bool D3D12Renderer::initialize() {
     }
 
     if (!m_swap_chain) {
-        mem::d_log("initialize: swap_chain is null");
+        mem::d_log("[D3D12Renderer] Initialize: swap_chain is null");
         return false;
     }
 
     if (!m_command_queue) {
-        mem::d_log("initialize: command_queue is null");
+        mem::d_log("[D3D12Renderer] Initialize: command_queue is null");
         return false;
     }
 
     // Get device from swap chain
     if (FAILED(m_swap_chain->GetDevice(__uuidof(ID3D12Device), reinterpret_cast<void**>(&g_device)))) {
-        mem::d_log("initialize: GetDevice failed");
+        mem::d_log("[D3D12Renderer] Initialize: GetDevice failed");
         return false;
     }
 
     // Get swap chain description for buffer setup
     DXGI_SWAP_CHAIN_DESC sd{};
     if (FAILED(m_swap_chain->GetDesc(&sd))) {
-        mem::d_log("initialize: GetDesc failed");
+        mem::d_log("[D3D12Renderer] Initialize: GetDesc failed");
         cleanup_device_resources();
         return false;
     }
@@ -187,7 +187,7 @@ bool D3D12Renderer::initialize() {
         return false;
     }
 
-    mem::d_log("BufferCount: {}", m_rtv_buffer_count);
+    mem::d_log("[D3D12Renderer] BufferCount: {}", m_rtv_buffer_count);
 
     // Setup swap chain waitable object
     g_hSwapChainWaitableObject = m_swap_chain->GetFrameLatencyWaitableObject();
@@ -198,27 +198,27 @@ bool D3D12Renderer::initialize() {
     // Get detailed swap chain description for window setup
     DXGI_SWAP_CHAIN_DESC1 sd1{};
     if (FAILED(m_swap_chain->GetDesc1(&sd1))) {
-        mem::d_log("initialize: GetDesc1 failed");
+        mem::d_log("[D3D12Renderer] Initialize: GetDesc1 failed");
         return false;
     }
 
     // Setup window procedure hook
     setup_window_hook(sd.OutputWindow);
     
-    mem::d_log("Window: {}x{} handle: {:#x}", sd1.Width, sd1.Height, reinterpret_cast<uintptr_t>(sd.OutputWindow));
-    mem::d_log("OriginalWndProc: {:#x}", reinterpret_cast<uintptr_t>(OriginalWndProc));
+    mem::d_log("[D3D12Renderer] Window: {}x{} handle: {:#x}", sd1.Width, sd1.Height, reinterpret_cast<uintptr_t>(sd.OutputWindow));
+    mem::d_log("[D3D12Renderer] OriginalWndProc: {:#x}", reinterpret_cast<uintptr_t>(OriginalWndProc));
 
     // Initialize nuklear
     m_nk_ctx = nk_d3d12_init(g_device, sd1.Width, sd1.Height, MAX_VERTEX_BUFFER, MAX_INDEX_BUFFER, USER_TEXTURES);
     if (!m_nk_ctx) {
-        mem::d_log("initialize: nk_d3d12_init failed");
+        mem::d_log("[D3D12Renderer] Initialize: nk_d3d12_init failed");
         return false;
     }
 
     // Setup fonts 
     setup_nuklear_fonts();
 
-    mem::d_log("initialize success");
+    mem::d_log("[D3D12Renderer] Initialize success");
     m_initialized = true;
     return true;
 }
@@ -250,7 +250,7 @@ void D3D12Renderer::shutdown() {
     // Clean up device
     cleanup_device_resources();
     
-    mem::d_log("Cleanup success!");
+    mem::d_log("[D3D12Renderer] Cleanup success");
     m_initialized = false;
     m_mutex.unlock();
 }
@@ -259,7 +259,7 @@ void D3D12Renderer::render() {
     if (!m_initialized || !m_nk_ctx || !g_command_list || !g_command_allocator) return;
 
     if (!m_swap_chain || !m_rtv_buffers || !m_rtv_handles) {
-        mem::d_log("render: missing presentation resources");
+        mem::d_log("[D3D12Renderer] Render: missing presentation resources");
         return;
     }
 
@@ -301,7 +301,7 @@ void D3D12Renderer::render() {
 
 void D3D12Renderer::draw() {
     if (!initialize()) {
-        mem::d_log("initialize failed, aborting draw");
+        mem::d_log("[D3D12Renderer] Initialize failed, aborting draw");
         return;
     }
 
@@ -357,19 +357,19 @@ void D3D12Renderer::draw() {
 bool D3D12Renderer::setup_command_resources() {
     g_fence_event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!g_fence_event) {
-        mem::d_log("setup_command_resources: fence_event creation failed");
+        mem::d_log("[D3D12Renderer] Setup command resources: fence_event creation failed");
         return false;
     }
 
     if (FAILED(g_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&g_fence)))) {
-        mem::d_log("setup_command_resources: CreateFence failed");
+        mem::d_log("[D3D12Renderer] Setup command resources: CreateFence failed");
         CloseHandle(g_fence_event);
         g_fence_event = nullptr;
         return false;
     }
 
     if (FAILED(g_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_command_allocator)))) {
-        mem::d_log("setup_command_resources: CreateCommandAllocator failed");
+        mem::d_log("[D3D12Renderer] Setup command resources: CreateCommandAllocator failed");
         g_fence->Release();
         g_fence = nullptr;
         CloseHandle(g_fence_event);
@@ -378,7 +378,7 @@ bool D3D12Renderer::setup_command_resources() {
     }
 
     if (FAILED(g_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_command_allocator, nullptr, IID_PPV_ARGS(&g_command_list)))) {
-        mem::d_log("setup_command_resources: CreateCommandList failed");
+        mem::d_log("[D3D12Renderer] Setup command resources: CreateCommandList failed");
         g_command_allocator->Release();
         g_command_allocator = nullptr;
         g_fence->Release();
@@ -399,7 +399,7 @@ bool D3D12Renderer::setup_render_target_heap() {
     rtv_desc_heap_desc.NodeMask = 1;
     
     if (FAILED(g_device->CreateDescriptorHeap(&rtv_desc_heap_desc, IID_PPV_ARGS(&m_rtv_descriptor_heap)))) {
-        mem::d_log("setup_render_target_heap: CreateDescriptorHeap failed");
+        mem::d_log("[D3D12Renderer] Setup render target heap: CreateDescriptorHeap failed");
         return false;
     }
 

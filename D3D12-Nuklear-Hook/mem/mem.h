@@ -1,11 +1,4 @@
 #pragma once
-#include <cstdint>
-#include <string>
-#include <format>
-#include <windows.h>
-#include <vector>
-#include <optional>
-
 #include "address.h"
 #include "pattern.h"
 #include "range.h"
@@ -45,7 +38,7 @@ namespace mem {
      */
     [[nodiscard]] inline void* swap_vmt(void* instance_ptr, void* hook_fn, size_t index = 0) noexcept {
         // validation
-        if (!instance_ptr || !hook_fn /*|| is_bad_ptr(reinterpret_cast<uintptr_t>(vtable_ptr))*/) {
+        if (!instance_ptr || !hook_fn) {
             return nullptr;
         }
 
