@@ -19,7 +19,8 @@ static void on_attach(LPVOID lpParameter) {
     }
 
     // Install QPC hook to discover SwapChain and hook Present & ResizeBuffers
-    g_qpc_hook.install_import(&qpc_import, reinterpret_cast<void*>(hooks::QueryPerformanceCounter_hk));
+   auto qpc_hook_status = g_qpc_hook.install_import(&qpc_import, reinterpret_cast<void*>(hooks::QueryPerformanceCounter_hk));
+    mem::d_log("[DllMain] QPC hook status {}", (int)qpc_hook_status);
 
     mem::d_log("[DllMain] Hook initialization complete");
 }

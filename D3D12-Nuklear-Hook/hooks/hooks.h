@@ -4,66 +4,155 @@
 #include <atomic>
 
 /**
- * @brief Self-contained hook with automatic VMT management
+ * @brief Hook installation result codes
  */
-struct Hook {
-	void* p_table{nullptr};         // table pointer
-	void* original{nullptr};        // Original function pointer
-	void* target{nullptr};          // Our hook function pointer  
-	bool installed{false};          // Installation status
-	int index;
+enum class HookResult : int {
+	Success = 0,
+	AlreadyInstalled = 1,
+	InvalidParameters = 2,
+	SwapFailed = 3,
+	NotInstalled = 4
+};
 
+/**
+ * @brief Minimal hook class for DLL injection
+ */
+class Hook {
+private:
+	void* p_table_{nullptr};
+	void* original_{nullptr};
+	void* target_{nullptr};
+	std::atomic<bool> installed_{false};
+	int index_{-1};
+
+public:
 	Hook() = default;
 	
 	/**
-	 * @brief Install VMT hook
+	 * @brief Move constructor
 	 */
-	template<typename T>
-	bool install(T* object, void* hook_func, int vmt_index) {
-		if (installed) return false;
-		
-		p_table = object;
-		index = vmt_index;
-		target = hook_func;
-		original = reinterpret_cast<void*>(mem::swap_vmt(p_table, target, index));
-		installed = true;
-		return true;
+	Hook(Hook&& other) noexcept 
+		: p_table_(std::exchange(other.p_table_, nullptr))
+		, original_(std::exchange(other.original_, nullptr))
+		, target_(std::exchange(other.target_, nullptr))
+		, installed_(other.installed_.exchange(false))
+		, index_(std::exchange(other.index_, -1)) {}
+	
+	/**
+	 * @brief Move assignment
+	 */
+	Hook& operator=(Hook&& other) noexcept {
+		if (this != &other) {
+			static_cast<void>(uninstall());
+			p_table_ = std::exchange(other.p_table_, nullptr);
+			original_ = std::exchange(other.original_, nullptr);
+			target_ = std::exchange(other.target_, nullptr);
+			installed_ = other.installed_.exchange(false);
+			index_ = std::exchange(other.index_, -1);
+		}
+		return *this;
 	}
 	
 	/**
-	 * @brief Install import hook  
+	 * @brief Destructor
 	 */
-	bool install_import(void* p_import_address, void* hook_func) {
-		if (installed) return false;
-		
-		p_table = p_import_address;
-		index = 0;
-		target = hook_func;
-		original = reinterpret_cast<void*>(mem::swap_vmt(p_table, target, index));
-		installed = true;
-		return true;
+	~Hook() {
+		static_cast<void>(uninstall());
 	}
 	
-	/**
-	 * @brief Remove hook and re-install original pointer
-	 */
-	void uninstall() {
-		target = mem::swap_vmt(p_table, original, index);
+	// Delete copy operations
+	Hook(const Hook&) = delete;
+	Hook& operator=(const Hook&) = delete;
 
-		p_table = target = original = nullptr;
-		installed = false;
-	}
-
+	// Essential getters
+	[[nodiscard]] bool is_installed() const noexcept { return installed_.load(); }
+	[[nodiscard]] void* get_original_ptr() const noexcept { return original_; }
+	
 	/**
 	 * @brief Get original function as specific type
 	 */
 	template<typename T>
-	T get_original() const {
-		return reinterpret_cast<T>(original);
+	[[nodiscard]] T get_original() const noexcept {
+		return reinterpret_cast<T>(original_);
+	}
+
+	/**
+	 * @brief Install VMT hook
+	 */
+	template<typename T>
+	[[nodiscard]] HookResult install(T* object, void* hook_func, int vmt_index) noexcept {
+		if (installed_.load()) return HookResult::AlreadyInstalled;
+		if (!object || !hook_func || vmt_index < 0) return HookResult::InvalidParameters;
+		
+		p_table_ = object;
+		index_ = vmt_index;
+		target_ = hook_func;
+		
+		original_ = mem::swap_vmt(p_table_, target_, index_);
+		if (!original_) {
+			reset_state();
+			return HookResult::SwapFailed;
+		}
+		
+		installed_.store(true);
+		return HookResult::Success;
+	}
+	
+	/**
+	 * @brief Install import hook
+	 */
+	[[nodiscard]] HookResult install_import(void* p_import_address, void* hook_func) noexcept {
+		if (installed_.load()) return HookResult::AlreadyInstalled;
+		if (!p_import_address || !hook_func) return HookResult::InvalidParameters;
+		
+		p_table_ = p_import_address;
+		index_ = 0;
+		target_ = hook_func;
+		
+		original_ = mem::swap_vmt(p_table_, target_, index_);
+		if (!original_) {
+			reset_state();
+			return HookResult::SwapFailed;
+		}
+		
+		installed_.store(true);
+		return HookResult::Success;
+	}
+	
+	/**
+	 * @brief Remove hook
+	 */
+	[[nodiscard]] HookResult uninstall() noexcept {
+		if (!installed_.load()) return HookResult::NotInstalled;
+		
+		void* restored = mem::swap_vmt(p_table_, original_, index_);
+		if (!restored) return HookResult::SwapFailed;
+		
+		reset_state();
+		return HookResult::Success;
+	}
+	
+	/**
+	 * @brief Force uninstall (ignores return value)
+	 */
+	void force_uninstall() noexcept {
+		if (installed_.load()) {
+			static_cast<void>(mem::swap_vmt(p_table_, original_, index_));
+			reset_state();
+		}
+	}
+
+private:
+	void reset_state() noexcept {
+		p_table_ = nullptr;
+		original_ = nullptr;
+		target_ = nullptr;
+		installed_.store(false);
+		index_ = -1;
 	}
 };
 
-// Global variable definitions
+// Global hook instances
 inline Hook g_present_hook{};
 inline Hook g_resize_buffers_hook{};
 inline Hook g_qpc_hook{};

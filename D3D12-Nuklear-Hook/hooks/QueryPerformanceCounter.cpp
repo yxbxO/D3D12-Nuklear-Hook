@@ -49,15 +49,18 @@ BOOL __fastcall hooks::QueryPerformanceCounter_hk(LARGE_INTEGER* lpPerformanceCo
          
 
             // Remove QPC hook as it's no longer needed
-            g_qpc_hook.uninstall();
+            static_cast<void>(g_qpc_hook.uninstall());
 
-            g_present_hook.install(renderer.swap_chain(), reinterpret_cast<void*>(hooks::Present_hk), 8);
-            g_resize_buffers_hook.install(renderer.swap_chain(), reinterpret_cast<void*>(hooks::ResizeBuffers_hk), 13);
+            auto present_hook_status = g_present_hook.install(renderer.swap_chain(), reinterpret_cast<void*>(hooks::Present_hk), 8);
+            mem::d_log("[QueryPerformanceCounter] present hook status {}", (int)present_hook_status);
+
+            auto resize_hook_status = g_resize_buffers_hook.install(renderer.swap_chain(), reinterpret_cast<void*>(hooks::ResizeBuffers_hk), 13);
+            mem::d_log("[QueryPerformanceCounter] resizebuffers hook status {}", (int)resize_hook_status);
 
             mem::d_log("[QueryPerformanceCounter] Successfully unhooked QPC");
         } else if (qpc_tries >= MAX_QPC_TRIES) {
             mem::d_log("[QueryPerformanceCounter] Failed to find SwapChain after {} tries", MAX_QPC_TRIES);
-            g_qpc_hook.uninstall();
+            static_cast<void>(g_qpc_hook.uninstall());
             mem::d_log("[QueryPerformanceCounter] Unhooked QPC after max tries");
         }
     }

@@ -127,8 +127,8 @@ namespace mem {
          * // Wait indefinitely
          * module.wait_for_module();
          */
-        bool wait_for_module(unsigned long timeout_ms = 0) noexcept {
-            const unsigned long start = GetTickCount64();
+        bool wait_for_module(ULONGLONG timeout_ms = 0) noexcept {
+            const ULONGLONG start = GetTickCount64();
 
             while (!try_get_module()) {
                 if (timeout_ms && (GetTickCount64() - start >= timeout_ms)) {
