@@ -1,13 +1,13 @@
 #include "../pch.h"
 
-
 HRESULT __fastcall hooks::Present_hk(uintptr_t ecx, UINT SyncInterval, UINT Flags) {
     auto& renderer = D3D12::get();
-    
+
     // Initialize SwapChain if not already done
     if (!renderer.swap_chain()) {
         renderer.set_swap_chain(reinterpret_cast<IDXGISwapChain3*>(ecx));
-        mem::d_log("[Present] SwapChain initialized at {:#x}", reinterpret_cast<uintptr_t>(renderer.swap_chain()));
+        mem::d_log("[Present] SwapChain initialized at {:#x}",
+                   reinterpret_cast<uintptr_t>(renderer.swap_chain()));
     }
 
     // Initialize CommandQueue if not already done
@@ -18,8 +18,8 @@ HRESULT __fastcall hooks::Present_hk(uintptr_t ecx, UINT SyncInterval, UINT Flag
             auto commandQueueOffset = result.self_offset(2).get<unsigned int>() - 0x8;
             auto command_queue = *reinterpret_cast<ID3D12CommandQueue**>(ecx + commandQueueOffset);
             renderer.set_command_queue(command_queue);
-            mem::d_log("[Present] CommandQueue initialized at {:#x} (offset: {:#x})", 
-                reinterpret_cast<uintptr_t>(renderer.command_queue()), commandQueueOffset);
+            mem::d_log("[Present] CommandQueue initialized at {:#x} (offset: {:#x})",
+                       reinterpret_cast<uintptr_t>(renderer.command_queue()), commandQueueOffset);
         } else {
             mem::d_log("[Present] Failed to find CommandQueue pattern");
         }
@@ -27,7 +27,6 @@ HRESULT __fastcall hooks::Present_hk(uintptr_t ecx, UINT SyncInterval, UINT Flag
 
     // Only render UI if we have both SwapChain and CommandQueue, and this isn't a test present
     if (renderer.swap_chain() && renderer.command_queue() && !(Flags & DXGI_PRESENT_TEST)) {
-        //std::lock_guard<std::recursive_mutex> lock(renderer.mutex());
         renderer.draw();
         renderer.render();
     }

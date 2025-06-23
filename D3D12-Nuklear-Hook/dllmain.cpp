@@ -19,7 +19,8 @@ static void on_attach(LPVOID lpParameter) {
     }
 
     // Install QPC hook to discover SwapChain and hook Present & ResizeBuffers
-   auto qpc_hook_status = g_qpc_hook.install_import(&qpc_import, reinterpret_cast<void*>(hooks::QueryPerformanceCounter_hk));
+    auto qpc_hook_status = g_qpc_hook.install_import(
+        &qpc_import, reinterpret_cast<void*>(hooks::QueryPerformanceCounter_hk));
     mem::d_log("[DllMain] QPC hook status {}", (int)qpc_hook_status);
 
     mem::d_log("[DllMain] Hook initialization complete");
@@ -29,12 +30,11 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     DisableThreadLibraryCalls(hModule);
 
     switch (ul_reason_for_call) {
-    case DLL_PROCESS_ATTACH:
-        on_attach(nullptr);
-        break;
-    case DLL_PROCESS_DETACH:
-        break;
+        case DLL_PROCESS_ATTACH:
+            on_attach(nullptr);
+            break;
+        case DLL_PROCESS_DETACH:
+            break;
     }
     return TRUE;
 }
-

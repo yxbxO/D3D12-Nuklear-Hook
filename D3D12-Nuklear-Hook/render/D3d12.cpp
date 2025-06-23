@@ -18,7 +18,6 @@
 #define NK_D3D12_IMPLEMENTATION
 #include "Nuklear/nuklear_d3d12.h"
 
-
 // Private implementation details
 static HANDLE g_hSwapChainWaitableObject = nullptr;
 static WNDPROC OriginalWndProc = nullptr;
@@ -35,7 +34,7 @@ static HANDLE g_fence_event = nullptr;
 
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     auto& renderer = D3D12Renderer::get();
-    
+
     if (!renderer.nuklear_context())
         return CallWindowProcW(OriginalWndProc, hWnd, msg, wParam, lParam);
 
@@ -51,16 +50,13 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         menu_is_open = !menu_is_open;
     }
 
-    bool shouldCapture = handled && menu_is_open && nk_item_is_any_active(renderer.nuklear_context());
+    bool shouldCapture =
+        handled && menu_is_open && nk_item_is_any_active(renderer.nuklear_context());
 
-    if (shouldCapture && (
-        msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP ||
-        msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP ||
-        msg == WM_MBUTTONDOWN || msg == WM_MBUTTONUP ||
-        msg == WM_MOUSEWHEEL || msg == WM_MOUSEMOVE ||
-        msg == WM_KEYDOWN || msg == WM_KEYUP ||
-        msg == WM_CHAR))
-    {
+    if (shouldCapture && (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN ||
+                          msg == WM_RBUTTONUP || msg == WM_MBUTTONDOWN || msg == WM_MBUTTONUP ||
+                          msg == WM_MOUSEWHEEL || msg == WM_MOUSEMOVE || msg == WM_KEYDOWN ||
+                          msg == WM_KEYUP || msg == WM_CHAR)) {
         return 0;
     }
 
@@ -69,23 +65,23 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 static void execute_commands() {
     auto& renderer = D3D12Renderer::get();
-    
+
     g_command_list->Close();
-    renderer.command_queue()->ExecuteCommandLists(1, reinterpret_cast<ID3D12CommandList* const*>(&g_command_list));
-    
+    renderer.command_queue()->ExecuteCommandLists(
+        1, reinterpret_cast<ID3D12CommandList* const*>(&g_command_list));
+
     const auto current_fence_value = ++g_fence_value;
     renderer.command_queue()->Signal(g_fence, current_fence_value);
     if (g_fence->GetCompletedValue() < current_fence_value) {
         g_fence->SetEventOnCompletion(current_fence_value, g_fence_event);
         WaitForSingleObject(g_fence_event, INFINITE);
     }
-    
+
     g_command_allocator->Reset();
     g_command_list->Reset(g_command_allocator, nullptr);
 }
 
-void D3D12Renderer::release_swap_chain_buffers()
-{    
+void D3D12Renderer::release_swap_chain_buffers() {
     if (!m_rtv_buffer_count || !m_rtv_buffers)
         return;
 
@@ -103,21 +99,19 @@ void D3D12Renderer::release_swap_chain_buffers()
     mem::d_log("[D3D12Renderer] Release swap_chain buffers complete");
 }
 
-void D3D12Renderer::get_swap_chain_buffers(UINT width, UINT height)
-{    
+void D3D12Renderer::get_swap_chain_buffers(UINT width, UINT height) {
     if (!m_rtv_buffer_count || !m_rtv_descriptor_heap || !g_device)
         return;
 
-    D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle = m_rtv_descriptor_heap->GetCPUDescriptorHandleForHeapStart();
+    D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle =
+        m_rtv_descriptor_heap->GetCPUDescriptorHandleForHeapStart();
 
     mem::d_log("[D3D12Renderer] Allocating {} buffers", m_rtv_buffer_count);
 
-    for (UINT i = 0; i < m_rtv_buffer_count; i++)
-    {
+    for (UINT i = 0; i < m_rtv_buffer_count; i++) {
         mem::d_log("[D3D12Renderer] Creating buffer: {}", i);
         HRESULT hr = m_swap_chain->GetBuffer(i, IID_PPV_ARGS(&m_rtv_buffers[i]));
-        if (FAILED(hr))
-        {
+        if (FAILED(hr)) {
             mem::d_log("[D3D12Renderer] GetBuffer {} failed", i);
             continue;
         }
@@ -127,10 +121,10 @@ void D3D12Renderer::get_swap_chain_buffers(UINT width, UINT height)
         descriptor_handle.ptr += m_rtv_desc_increment;
     }
 
-    mem::d_log("[D3D12Renderer] Get swap_chain buffers complete for {} buffers", m_rtv_buffer_count);
-    
-    if (width || height)
-    {
+    mem::d_log("[D3D12Renderer] Get swap_chain buffers complete for {} buffers",
+               m_rtv_buffer_count);
+
+    if (width || height) {
         nk_d3d12_resize(width, height);
     }
 }
@@ -204,18 +198,21 @@ bool D3D12Renderer::initialize() {
 
     // Setup window procedure hook
     setup_window_hook(sd.OutputWindow);
-    
-    mem::d_log("[D3D12Renderer] Window: {}x{} handle: {:#x}", sd1.Width, sd1.Height, reinterpret_cast<uintptr_t>(sd.OutputWindow));
-    mem::d_log("[D3D12Renderer] OriginalWndProc: {:#x}", reinterpret_cast<uintptr_t>(OriginalWndProc));
+
+    mem::d_log("[D3D12Renderer] Window: {}x{} handle: {:#x}", sd1.Width, sd1.Height,
+               reinterpret_cast<uintptr_t>(sd.OutputWindow));
+    mem::d_log("[D3D12Renderer] OriginalWndProc: {:#x}",
+               reinterpret_cast<uintptr_t>(OriginalWndProc));
 
     // Initialize nuklear
-    m_nk_ctx = nk_d3d12_init(g_device, sd1.Width, sd1.Height, MAX_VERTEX_BUFFER, MAX_INDEX_BUFFER, USER_TEXTURES);
+    m_nk_ctx = nk_d3d12_init(g_device, sd1.Width, sd1.Height, MAX_VERTEX_BUFFER, MAX_INDEX_BUFFER,
+                             USER_TEXTURES);
     if (!m_nk_ctx) {
         mem::d_log("[D3D12Renderer] Initialize: nk_d3d12_init failed");
         return false;
     }
 
-    // Setup fonts 
+    // Setup fonts
     setup_nuklear_fonts();
 
     mem::d_log("[D3D12Renderer] Initialize success");
@@ -227,36 +224,37 @@ void D3D12Renderer::start_input() {
     needsInput = true;
 }
 
-void D3D12Renderer::shutdown() {    
-    if (!m_initialized && !m_shutdown) 
+void D3D12Renderer::shutdown() {
+    if (!m_initialized && !m_shutdown)
         return;
-    
+
     m_mutex.lock();
 
     m_shutdown = true;
-    
+
     // Clean up nuklear
     if (m_nk_ctx) {
         nk_d3d12_shutdown();
         m_nk_ctx = nullptr;
     }
-    
+
     // Clean up presentation resources
     cleanup_presentation_resources();
-    
+
     // Clean up command resources
     cleanup_command_resources();
-    
+
     // Clean up device
     cleanup_device_resources();
-    
+
     mem::d_log("[D3D12Renderer] Cleanup success");
     m_initialized = false;
     m_mutex.unlock();
 }
 
-void D3D12Renderer::render() {    
-    if (!m_initialized || !m_nk_ctx || !g_command_list || !g_command_allocator) return;
+void D3D12Renderer::render() {
+    if (!m_initialized || !m_nk_ctx || !g_command_list || !g_command_allocator)
+        return;
 
     if (!m_swap_chain || !m_rtv_buffers || !m_rtv_handles) {
         mem::d_log("[D3D12Renderer] Render: missing presentation resources");
@@ -279,7 +277,7 @@ void D3D12Renderer::render() {
     resource_barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
     resource_barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
     resource_barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    
+
     g_command_list->ResourceBarrier(1, &resource_barrier);
 
     // Set our render target
@@ -314,10 +312,12 @@ void D3D12Renderer::draw() {
 
     /* GUI */
     if (nk_begin(m_nk_ctx, "Demo", nk_rect(50, 50, 230, 250),
-        NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
-        NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE))
-    {
-        enum { EASY, HARD };
+                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE |
+                     NK_WINDOW_TITLE)) {
+        enum {
+            EASY,
+            HARD
+        };
         static int op = EASY;
         static int property = 20;
 
@@ -326,8 +326,10 @@ void D3D12Renderer::draw() {
             // Button pressed - implement functionality here
         }
         nk_layout_row_dynamic(m_nk_ctx, 30, 2);
-        if (nk_option_label(m_nk_ctx, "easy", op == EASY)) op = EASY;
-        if (nk_option_label(m_nk_ctx, "hard", op == HARD)) op = HARD;
+        if (nk_option_label(m_nk_ctx, "easy", op == EASY))
+            op = EASY;
+        if (nk_option_label(m_nk_ctx, "hard", op == HARD))
+            op = HARD;
         nk_layout_row_dynamic(m_nk_ctx, 22, 1);
         nk_property_int(m_nk_ctx, "Compression:", 0, &property, 100, 10, 1);
 
@@ -336,7 +338,8 @@ void D3D12Renderer::draw() {
         nk_layout_row_dynamic(m_nk_ctx, 25, 1);
 
         static struct nk_colorf bg;
-        if (nk_combo_begin_color(m_nk_ctx, nk_rgb_cf(bg), nk_vec2(nk_widget_width(m_nk_ctx), 400))) {
+        if (nk_combo_begin_color(m_nk_ctx, nk_rgb_cf(bg),
+                                 nk_vec2(nk_widget_width(m_nk_ctx), 400))) {
             nk_layout_row_dynamic(m_nk_ctx, 120, 1);
             bg = nk_color_picker(m_nk_ctx, bg, NK_RGBA);
             nk_layout_row_dynamic(m_nk_ctx, 25, 1);
@@ -368,7 +371,8 @@ bool D3D12Renderer::setup_command_resources() {
         return false;
     }
 
-    if (FAILED(g_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_command_allocator)))) {
+    if (FAILED(g_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                                IID_PPV_ARGS(&g_command_allocator)))) {
         mem::d_log("[D3D12Renderer] Setup command resources: CreateCommandAllocator failed");
         g_fence->Release();
         g_fence = nullptr;
@@ -377,7 +381,8 @@ bool D3D12Renderer::setup_command_resources() {
         return false;
     }
 
-    if (FAILED(g_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_command_allocator, nullptr, IID_PPV_ARGS(&g_command_list)))) {
+    if (FAILED(g_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_command_allocator,
+                                           nullptr, IID_PPV_ARGS(&g_command_list)))) {
         mem::d_log("[D3D12Renderer] Setup command resources: CreateCommandList failed");
         g_command_allocator->Release();
         g_command_allocator = nullptr;
@@ -397,18 +402,21 @@ bool D3D12Renderer::setup_render_target_heap() {
     rtv_desc_heap_desc.NumDescriptors = m_rtv_buffer_count;
     rtv_desc_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     rtv_desc_heap_desc.NodeMask = 1;
-    
-    if (FAILED(g_device->CreateDescriptorHeap(&rtv_desc_heap_desc, IID_PPV_ARGS(&m_rtv_descriptor_heap)))) {
+
+    if (FAILED(g_device->CreateDescriptorHeap(&rtv_desc_heap_desc,
+                                              IID_PPV_ARGS(&m_rtv_descriptor_heap)))) {
         mem::d_log("[D3D12Renderer] Setup render target heap: CreateDescriptorHeap failed");
         return false;
     }
 
-    m_rtv_desc_increment = g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    m_rtv_desc_increment =
+        g_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     return true;
 }
 
 void D3D12Renderer::setup_window_hook(HWND window) {
-    OriginalWndProc = reinterpret_cast<WNDPROC>(SetWindowLongPtr(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WndProc)));
+    OriginalWndProc = reinterpret_cast<WNDPROC>(
+        SetWindowLongPtr(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WndProc)));
 }
 
 void D3D12Renderer::setup_nuklear_fonts() {
@@ -429,17 +437,17 @@ void D3D12Renderer::cleanup_presentation_resources() {
         delete[] m_rtv_buffers;
         m_rtv_buffers = nullptr;
     }
-    
+
     if (m_rtv_handles) {
         delete[] m_rtv_handles;
         m_rtv_handles = nullptr;
     }
-    
+
     if (m_rtv_descriptor_heap) {
         m_rtv_descriptor_heap->Release();
         m_rtv_descriptor_heap = nullptr;
     }
-    
+
     m_rtv_buffer_count = 0;
 }
 

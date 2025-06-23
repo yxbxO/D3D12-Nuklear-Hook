@@ -1,5 +1,6 @@
 # Visual Studio generated files
 .vs/
+.vscode/
 *.vcxproj.user
 *.vcxproj.filters.user
 
