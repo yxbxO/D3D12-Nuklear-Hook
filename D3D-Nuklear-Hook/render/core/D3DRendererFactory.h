@@ -19,14 +19,15 @@ public:
         if (d3d12.begin() && d3d12.get_export("D3D12CreateDevice")) {
             return D3DVersion::D3D12;
         }
-        //7FFCDF1CF6F0 - d3d11.D3D11CreateDevice
+
+        // Check for D3D11
         auto d3d11 = mem::module(L"d3d11.dll");
         if (d3d11.begin() && d3d11.get_export("D3D11CreateDevice")) {
             return D3DVersion::D3D11;
         }
         // D3D11 support will be added later
 
-        mem::d_log("[D3DVersion detect_version] UNKNOWN D3D VERIONS");
+        mem::d_log("[D3DVersion detect_version] UNKNOWN D3D VERION");
         return D3DVersion::Unknown;
     }
 }; 

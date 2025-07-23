@@ -16,7 +16,7 @@ enum class HookResult : int {
 };
 
 /**
- * @brief Minimal hook class for DLL injection
+ * @brief Minimal hook class
  */
 class Hook {
   private:
@@ -174,8 +174,4 @@ extern HRESULT __fastcall Present_hk(uintptr_t rcx, UINT SyncInterval, UINT Flag
 extern HRESULT __fastcall ResizeBuffers_hk(uintptr_t rcx, UINT BufferCount, UINT Width, UINT Height,
                                            DXGI_FORMAT NewFormat, UINT SwapChainFlags);
 extern BOOL __fastcall QueryPerformanceCounter_hk(LARGE_INTEGER* lpPerformanceCount);
-
-// D3D12 Screenshot detection hooks
-// Simple D3D version detection (no hooks)
-bool is_detected_d3d12();
 }  // namespace hooks

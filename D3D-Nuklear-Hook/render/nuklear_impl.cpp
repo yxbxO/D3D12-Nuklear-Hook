@@ -12,9 +12,7 @@
 #define NK_INCLUDE_FONT_BAKING
 #define NK_INCLUDE_DEFAULT_FONT
 #define NK_INCLUDE_DEFAULT_ALLOCATOR
-#define NK_ASSERT
-
-
+#define NK_ASSERT ((void)0)
 
 #define NK_IMPLEMENTATION
 #include "Nuklear/nuklear.h"

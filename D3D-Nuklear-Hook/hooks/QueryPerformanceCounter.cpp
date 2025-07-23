@@ -1,7 +1,5 @@
 #include "../pch.h"
 
-//extern std::unique_ptr<ID3DRenderer> g_renderer;
-
 // Internal state for QPC hook
 int qpc_tries = 0;
 constexpr int MAX_QPC_TRIES = 10;

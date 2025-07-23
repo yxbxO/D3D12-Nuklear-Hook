@@ -45,10 +45,10 @@ The codebase is now organized with a modular renderer architecture:
 ## Compilation
 
 1. Download and install Microsoft Visual Studio 2022
-2. Open `D3D12-Nuklear-Hook.sln` with Visual Studio
+2. Open `D3D-Nuklear-Hook.sln` with Visual Studio
 3. Select **Release x64** (recommended)
 4. Press `Ctrl+Shift+B` to build (creates DLL)
-5. Inject `x64/Release/D3D12-Nuklear-Hook.dll` into a D3D12 or D3D11 application
+5. Inject `x64/Release/D3D-Nuklear-Hook.dll` into a D3D12 or D3D11 application
 
 ## Runtime Control
 

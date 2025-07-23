@@ -14,16 +14,11 @@
 #define NK_INCLUDE_DEFAULT_ALLOCATOR
 #define NK_ASSERT
 
-// Suppress warnings from third-party Nuklear library
-
-
-//#define NK_IMPLEMENTATION
 #include "../Nuklear/nuklear.h"
 
 #define NK_D3D12_IMPLEMENTATION
 #include "../Nuklear/nuklear_d3d12.h"
 
-//#pragma warning(pop) // Restore warning level
 
 // Private implementation details
 static HANDLE g_hSwapChainWaitableObject = nullptr;
@@ -46,22 +41,9 @@ LRESULT D3D12Renderer::wndproc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
     if (!m_nk_ctx)
         return CallWindowProcW(m_originalWndProc, hWnd, msg, wParam, lParam);
 
-    {
-        m_inputQueue.push({ hWnd, msg, wParam, lParam });
-    }
-    
-    //// Start fresh input state if needed
-    //if (needsInput) {
-    //    nk_input_begin(m_nk_ctx);
-    //    needsInput = false;
-    //}
-
-   // m_inputQueue.push({ hWnd, msg, wParam, lParam });
-    bool handled = false;// nk_d3d12_handle_event(hWnd, msg, wParam, lParam);
-
-
-    bool shouldCapture =
-        handled && menu_is_open && nk_item_is_any_active(m_nk_ctx);
+    m_inputQueue.push({ hWnd, msg, wParam, lParam });
+   
+    bool shouldCapture = menu_is_open && nk_item_is_any_active(m_nk_ctx);
 
     if (shouldCapture && (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN ||
                           msg == WM_RBUTTONUP || msg == WM_MBUTTONDOWN || msg == WM_MBUTTONUP ||
@@ -290,16 +272,13 @@ void D3D12Renderer::shutdown() {
 }
 
 void D3D12Renderer::render() {
-    //if (!m_initialized || !m_nk_ctx || !g_command_list || !g_command_allocator)
-    //    return;
+    if (!m_initialized || !m_nk_ctx || !g_command_list || !g_command_allocator)
+        return;
 
-    //if (!m_swap_chain || !m_rtv_buffers || !m_rtv_handles) {
-    //    mem::d_log("[D3D12Renderer] Render: missing presentation resources");
-    //    return;
-    //}
-
-    //if (!needsInput)
-    //    nk_input_end(m_nk_ctx);
+    if (!m_swap_chain || !m_rtv_buffers || !m_rtv_handles) {
+        mem::d_log("[D3D12Renderer] Render: missing presentation resources");
+        return;
+    }
 
     m_mutex.lock();
 

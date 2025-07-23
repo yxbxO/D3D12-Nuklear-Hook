@@ -100,8 +100,6 @@ bool D3D11Renderer::initialize() {
 void D3D11Renderer::render() {
     if (!m_initialized || !m_nk_ctx || !m_rt_view) return;
     m_mutex.lock();
-    //std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    //float bg[4] = {0.10f, 0.18f, 0.24f, 1.0f};
     m_context->OMSetRenderTargets(1, &m_rt_view, nullptr);
     nk_d3d11_render(m_context, NK_ANTI_ALIASING_ON);
     m_mutex.unlock();
@@ -115,15 +113,10 @@ void D3D11Renderer::start_input() {
     nk_input_begin(m_nk_ctx);
 
     // Process all queued input events
-    // if (auto locked = m_inputMutex.try_lock(); locked)
-    {
-        //mem::d_log("[D3D11Renderer::draw] m_inputQueue : {}", m_inputQueue.size());
-        while (!m_inputQueue.empty()) {
-            const auto& evt = m_inputQueue.front();
-            nk_d3d11_handle_event(evt.hwnd, evt.msg, evt.wparam, evt.lparam);
-            m_inputQueue.pop();
-        }
-        // m_inputMutex.unlock();            
+    while (!m_inputQueue.empty()) {
+        const auto& evt = m_inputQueue.front();
+        nk_d3d11_handle_event(evt.hwnd, evt.msg, evt.wparam, evt.lparam);
+        m_inputQueue.pop();
     }
 
     // End Nuklear input frame

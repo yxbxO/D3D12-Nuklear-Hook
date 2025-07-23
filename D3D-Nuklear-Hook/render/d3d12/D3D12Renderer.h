@@ -1,8 +1,5 @@
 #pragma once
 
-// forward declare.
-//struct nk_context;
-
 class D3D12Renderer : public ID3DRenderer {
   private:
     // Core swap chain and presentation resources

@@ -1,7 +1,5 @@
 #pragma once
 
-struct nk_context;
-
 class D3D11Renderer : public ID3DRenderer {
 private:
     IDXGISwapChain3* m_swap_chain = nullptr;
