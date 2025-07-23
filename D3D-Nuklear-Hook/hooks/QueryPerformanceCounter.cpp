@@ -1,5 +1,7 @@
 #include "../pch.h"
 
+//extern std::unique_ptr<ID3DRenderer> g_renderer;
+
 // Internal state for QPC hook
 int qpc_tries = 0;
 constexpr int MAX_QPC_TRIES = 10;
@@ -7,9 +9,9 @@ constexpr int MAX_QPC_TRIES = 10;
 /**
  * @brief Attempts to find the SwapChain pointer from QPC counter address
  */
-__forceinline static bool try_get_swapchain_from_qpc(LARGE_INTEGER* counter) noexcept {
+__forceinline static void* try_get_swapchain_from_qpc(LARGE_INTEGER* counter) noexcept {
     if (!counter) {
-        return false;
+        return nullptr;
     }
 
     // Calculate potential SwapChain pointer using known offset pattern
@@ -19,7 +21,7 @@ __forceinline static bool try_get_swapchain_from_qpc(LARGE_INTEGER* counter) noe
 
     // Sanity check. Not the best but catches most false positives.
     if (offset >= 0x10000)
-        return false;
+        return nullptr;
 
     auto potential_chain =
         reinterpret_cast<IDXGISwapChain3*>(reinterpret_cast<__int64>(counter) - offset);
@@ -29,45 +31,50 @@ __forceinline static bool try_get_swapchain_from_qpc(LARGE_INTEGER* counter) noe
         void** vtable = *reinterpret_cast<void***>(potential_chain);
         mem::module hdxgi(L"dxgi.dll");
         if (vtable && hdxgi.contains(vtable)) {
-            D3D12::get().set_swap_chain(potential_chain);
-            return true;
+            return potential_chain;
         }
     }
 
-    return false;
+    return nullptr;
 }
 
 BOOL __fastcall hooks::QueryPerformanceCounter_hk(LARGE_INTEGER* lpPerformanceCount) {
     // Call original QPC function first
     auto original = g_qpc_hook.get_original<BOOL(__stdcall*)(LARGE_INTEGER*)>();
 
-    // Only attempt SwapChain acquisition if not already found and within max tries
-    auto& renderer = D3D12::get();
-    if (!renderer.swap_chain() && qpc_tries++ < MAX_QPC_TRIES) {
-        if (try_get_swapchain_from_qpc(lpPerformanceCount)) {
+
+    if (!g_renderer && qpc_tries++ < MAX_QPC_TRIES) {
+        if(IDXGISwapChain* swap_chain = reinterpret_cast<IDXGISwapChain*>(try_get_swapchain_from_qpc(lpPerformanceCount)); swap_chain != nullptr)
+        {
+            D3DVersion version = D3DRendererFactory::detect_version();
+            g_renderer = D3DRendererFactory::create_renderer(version, swap_chain);
+
+           // auto* renderer = static_cast<D3D12Renderer*>(g_renderer.get());
+
             mem::d_log("[QueryPerformanceCounter] Found SwapChain at {:#x}",
-                       reinterpret_cast<uintptr_t>(D3D12::get().swap_chain()));
+                reinterpret_cast<uintptr_t>(swap_chain));
 
             // Remove QPC hook as it's no longer needed
             static_cast<void>(g_qpc_hook.uninstall());
 
             auto present_hook_status = g_present_hook.install(
-                renderer.swap_chain(), reinterpret_cast<void*>(hooks::Present_hk), 8);
+                swap_chain, reinterpret_cast<void*>(hooks::Present_hk), 8);
             mem::d_log("[QueryPerformanceCounter] present hook status {}",
-                       (int)present_hook_status);
+                (int)present_hook_status);
 
             auto resize_hook_status = g_resize_buffers_hook.install(
-                renderer.swap_chain(), reinterpret_cast<void*>(hooks::ResizeBuffers_hk), 13);
+                swap_chain, reinterpret_cast<void*>(hooks::ResizeBuffers_hk), 13);
             mem::d_log("[QueryPerformanceCounter] resizebuffers hook status {}",
-                       (int)resize_hook_status);
+                (int)resize_hook_status);
 
             mem::d_log("[QueryPerformanceCounter] Successfully unhooked QPC");
-        } else if (qpc_tries >= MAX_QPC_TRIES) {
-            mem::d_log("[QueryPerformanceCounter] Failed to find SwapChain after {} tries",
-                       MAX_QPC_TRIES);
-            static_cast<void>(g_qpc_hook.uninstall());
-            mem::d_log("[QueryPerformanceCounter] Unhooked QPC after max tries");
         }
+    }
+    else if (qpc_tries >= MAX_QPC_TRIES) {
+        mem::d_log("[QueryPerformanceCounter] Failed to find SwapChain after {} tries",
+            MAX_QPC_TRIES);
+        static_cast<void>(g_qpc_hook.uninstall());
+        mem::d_log("[QueryPerformanceCounter] Unhooked QPC after max tries");
     }
 
     BOOL ret = original(lpPerformanceCount);

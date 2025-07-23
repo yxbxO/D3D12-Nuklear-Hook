@@ -21,11 +21,35 @@
 #include <format>
 #include <vector>
 #include <optional>
+#include <queue>
+
 #include <d3d12.h>
+#include <d3d11.h>
+
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <fstream>
+#include <memory>
+
+//#define NK_INCLUDE_COMMAND_USERDATA
+//#define NK_INCLUDE_STANDARD_BOOL
+//#define NK_INCLUDE_FIXED_TYPES
+//#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
+//#define NK_INCLUDE_FONT_BAKING
+//#define NK_INCLUDE_DEFAULT_FONT
+//#define NK_INCLUDE_DEFAULT_ALLOCATOR
+//
+//#define NK_IMPLEMENTATION
+//#include "render/Nuklear/nuklear.h"
 
 #include "mem/mem.h"
 
 #include "hooks/hooks.h"
 
-#include "render/D3D12.h"
+//#include "render/input/WndProc.h"
+#include "render/core/ID3DRenderer.h"
+#include "render/d3d11/D3D11Renderer.h"
+#include "render/d3d12/D3D12Renderer.h"
+#include "render/core/D3DRendererFactory.h"
 #endif //PCH_H

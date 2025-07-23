@@ -1,6 +1,10 @@
 #include "pch.h"
 
 void* qpc_import = nullptr;
+/**
+ * @brief Entry point logic for DLL_PROCESS_ATTACH. Initializes hooks and logging.
+ * @param lpParameter Reserved, not used.
+ */
 static void on_attach(LPVOID lpParameter) {
     mem::d_log("[DllMain] Starting D3D12 Nuklear Hook...");
 
@@ -11,6 +15,7 @@ static void on_attach(LPVOID lpParameter) {
         return;
     }
 
+  //  g_renderer = std::make_unique<ID3DRenderer>();
     // Global because needed for removing hook later on.
     qpc_import = hdxgi.get_import("QueryPerformanceCounter");
     if (!qpc_import) {
@@ -26,6 +31,13 @@ static void on_attach(LPVOID lpParameter) {
     mem::d_log("[DllMain] Hook initialization complete");
 }
 
+/**
+ * @brief Windows DLL entry point. Handles process attach/detach events.
+ * @param hModule Handle to the DLL module
+ * @param ul_reason_for_call Reason code for entry (attach/detach)
+ * @param lpReserved Reserved, not used
+ * @return TRUE on success
+ */
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     DisableThreadLibraryCalls(hModule);
 

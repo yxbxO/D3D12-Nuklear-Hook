@@ -170,8 +170,12 @@ inline Hook g_qpc_hook{};
 
 namespace hooks {
 // Hook function declarations
-extern HRESULT __fastcall Present_hk(uintptr_t ecx, UINT SyncInterval, UINT Flags);
-extern HRESULT __fastcall ResizeBuffers_hk(uintptr_t ecx, UINT BufferCount, UINT Width, UINT Height,
+extern HRESULT __fastcall Present_hk(uintptr_t rcx, UINT SyncInterval, UINT Flags);
+extern HRESULT __fastcall ResizeBuffers_hk(uintptr_t rcx, UINT BufferCount, UINT Width, UINT Height,
                                            DXGI_FORMAT NewFormat, UINT SwapChainFlags);
 extern BOOL __fastcall QueryPerformanceCounter_hk(LARGE_INTEGER* lpPerformanceCount);
+
+// D3D12 Screenshot detection hooks
+// Simple D3D version detection (no hooks)
+bool is_detected_d3d12();
 }  // namespace hooks

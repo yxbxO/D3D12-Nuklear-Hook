@@ -1,4 +1,5 @@
-#include "../pch.h"
+#include "../../pch.h"
+#include <queue>
 
 #define USER_TEXTURES 6
 #define MAX_VERTEX_BUFFER 512 * 1024
@@ -11,17 +12,22 @@
 #define NK_INCLUDE_FONT_BAKING
 #define NK_INCLUDE_DEFAULT_FONT
 #define NK_INCLUDE_DEFAULT_ALLOCATOR
+#define NK_ASSERT
 
-#define NK_IMPLEMENTATION
-#include "Nuklear/nuklear.h"
+// Suppress warnings from third-party Nuklear library
+
+
+//#define NK_IMPLEMENTATION
+#include "../Nuklear/nuklear.h"
 
 #define NK_D3D12_IMPLEMENTATION
-#include "Nuklear/nuklear_d3d12.h"
+#include "../Nuklear/nuklear_d3d12.h"
+
+//#pragma warning(pop) // Restore warning level
 
 // Private implementation details
 static HANDLE g_hSwapChainWaitableObject = nullptr;
 static WNDPROC OriginalWndProc = nullptr;
-static bool needsInput = true;
 static bool menu_is_open = true;
 
 // Simple command execution for presentation layer only
@@ -32,26 +38,30 @@ static ID3D12Fence* g_fence = nullptr;
 static UINT64 g_fence_value = 0;
 static HANDLE g_fence_event = nullptr;
 
-static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    auto& renderer = D3D12Renderer::get();
-
-    if (!renderer.nuklear_context())
-        return CallWindowProcW(OriginalWndProc, hWnd, msg, wParam, lParam);
-
-    // Start fresh input state
-    if (needsInput) {
-        nk_input_begin(renderer.nuklear_context());
-        needsInput = false;
-    }
-
-    bool handled = nk_d3d12_handle_event(hWnd, msg, wParam, lParam);
-
+LRESULT D3D12Renderer::wndproc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     if (GetAsyncKeyState(VK_INSERT) & 1) {
         menu_is_open = !menu_is_open;
     }
 
+    if (!m_nk_ctx)
+        return CallWindowProcW(m_originalWndProc, hWnd, msg, wParam, lParam);
+
+    {
+        m_inputQueue.push({ hWnd, msg, wParam, lParam });
+    }
+    
+    //// Start fresh input state if needed
+    //if (needsInput) {
+    //    nk_input_begin(m_nk_ctx);
+    //    needsInput = false;
+    //}
+
+   // m_inputQueue.push({ hWnd, msg, wParam, lParam });
+    bool handled = false;// nk_d3d12_handle_event(hWnd, msg, wParam, lParam);
+
+
     bool shouldCapture =
-        handled && menu_is_open && nk_item_is_any_active(renderer.nuklear_context());
+        handled && menu_is_open && nk_item_is_any_active(m_nk_ctx);
 
     if (shouldCapture && (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN ||
                           msg == WM_RBUTTONUP || msg == WM_MBUTTONDOWN || msg == WM_MBUTTONUP ||
@@ -60,18 +70,18 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
     }
 
-    return CallWindowProcW(OriginalWndProc, hWnd, msg, wParam, lParam);
+    return CallWindowProcW(m_originalWndProc, hWnd, msg, wParam, lParam);
 }
 
 static void execute_commands() {
-    auto& renderer = D3D12Renderer::get();
+    auto* renderer = static_cast<D3D12Renderer*>(g_renderer.get());
 
     g_command_list->Close();
-    renderer.command_queue()->ExecuteCommandLists(
+    renderer->command_queue()->ExecuteCommandLists(
         1, reinterpret_cast<ID3D12CommandList* const*>(&g_command_list));
 
     const auto current_fence_value = ++g_fence_value;
-    renderer.command_queue()->Signal(g_fence, current_fence_value);
+    renderer->command_queue()->Signal(g_fence, current_fence_value);
     if (g_fence->GetCompletedValue() < current_fence_value) {
         g_fence->SetEventOnCompletion(current_fence_value, g_fence_event);
         WaitForSingleObject(g_fence_event, INFINITE);
@@ -215,13 +225,37 @@ bool D3D12Renderer::initialize() {
     // Setup fonts
     setup_nuklear_fonts();
 
+
     mem::d_log("[D3D12Renderer] Initialize success");
     m_initialized = true;
     return true;
 }
 
 void D3D12Renderer::start_input() {
-    needsInput = true;
+    // Begin Nuklear input frame
+    nk_input_begin(m_nk_ctx);
+
+    // Process all queued input events
+    // if (auto locked = m_inputMutex.try_lock(); locked)
+    {
+        while (!m_inputQueue.empty()) {
+            const auto& evt = m_inputQueue.front();
+            nk_d3d12_handle_event(evt.hwnd, evt.msg, evt.wparam, evt.lparam);
+            m_inputQueue.pop();
+        }
+        // m_inputMutex.unlock();            
+    }
+
+    // End Nuklear input frame
+    nk_input_end(m_nk_ctx);
+}
+
+void D3D12Renderer::remove_window_hook() {
+    if (m_window && m_originalWndProc) {
+        SetWindowLongPtr(m_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(m_originalWndProc));
+        m_window = nullptr;
+        m_originalWndProc = nullptr;
+    }
 }
 
 void D3D12Renderer::shutdown() {
@@ -231,6 +265,9 @@ void D3D12Renderer::shutdown() {
     m_mutex.lock();
 
     m_shutdown = true;
+
+    // Unhook window proc if hooked
+    remove_window_hook();
 
     // Clean up nuklear
     if (m_nk_ctx) {
@@ -253,15 +290,19 @@ void D3D12Renderer::shutdown() {
 }
 
 void D3D12Renderer::render() {
-    if (!m_initialized || !m_nk_ctx || !g_command_list || !g_command_allocator)
-        return;
+    //if (!m_initialized || !m_nk_ctx || !g_command_list || !g_command_allocator)
+    //    return;
 
-    if (!m_swap_chain || !m_rtv_buffers || !m_rtv_handles) {
-        mem::d_log("[D3D12Renderer] Render: missing presentation resources");
-        return;
-    }
+    //if (!m_swap_chain || !m_rtv_buffers || !m_rtv_handles) {
+    //    mem::d_log("[D3D12Renderer] Render: missing presentation resources");
+    //    return;
+    //}
+
+    //if (!needsInput)
+    //    nk_input_end(m_nk_ctx);
 
     m_mutex.lock();
+
 
     UINT rtv_index = m_swap_chain->GetCurrentBackBufferIndex();
 
@@ -303,17 +344,17 @@ void D3D12Renderer::draw() {
         return;
     }
 
-    if (!menu_is_open)
-        return;
-
-    m_mutex.lock();
 
     start_input();
 
+
+    if (!menu_is_open)
+        return;
+
     /* GUI */
     if (nk_begin(m_nk_ctx, "Demo", nk_rect(50, 50, 230, 250),
-                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE |
-                     NK_WINDOW_TITLE)) {
+        NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE |
+        NK_WINDOW_TITLE)) {
         enum {
             EASY,
             HARD
@@ -339,7 +380,7 @@ void D3D12Renderer::draw() {
 
         static struct nk_colorf bg;
         if (nk_combo_begin_color(m_nk_ctx, nk_rgb_cf(bg),
-                                 nk_vec2(nk_widget_width(m_nk_ctx), 400))) {
+            nk_vec2(nk_widget_width(m_nk_ctx), 400))) {
             nk_layout_row_dynamic(m_nk_ctx, 120, 1);
             bg = nk_color_picker(m_nk_ctx, bg, NK_RGBA);
             nk_layout_row_dynamic(m_nk_ctx, 25, 1);
@@ -354,6 +395,283 @@ void D3D12Renderer::draw() {
     }
 
     m_mutex.unlock();
+}
+
+// Helper function to save screenshot as BMP
+static bool save_screenshot_as_bmp(const std::string& filename, void* data, int width, int height, int row_pitch, DXGI_FORMAT format) {
+    std::ofstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+        return false;
+    }
+
+    // BMP file header (14 bytes) - must be packed
+    #pragma pack(push, 1)
+    struct BMPFileHeader {
+        uint16_t file_type = 0x4D42; // "BM"
+        uint32_t file_size = 0;
+        uint16_t reserved1 = 0;
+        uint16_t reserved2 = 0;
+        uint32_t offset_data = 54; // Header size
+    };
+
+    // BMP info header (40 bytes) - must be packed
+    struct BMPInfoHeader {
+        uint32_t size = 40;
+        int32_t width = 0;
+        int32_t height = 0;
+        uint16_t planes = 1;
+        uint16_t bit_count = 24; // RGB (24-bit, no alpha)
+        uint32_t compression = 0;
+        uint32_t size_image = 0;
+        int32_t x_pixels_per_meter = 2835; // 72 DPI
+        int32_t y_pixels_per_meter = 2835; // 72 DPI
+        uint32_t colors_used = 0;
+        uint32_t colors_important = 0;
+    };
+    #pragma pack(pop)
+
+    // Calculate row padding (BMP rows must be 4-byte aligned)
+    const int bytes_per_pixel = 3; // RGB
+    const int padded_row_size = ((width * bytes_per_pixel + 3) / 4) * 4;
+    const int image_size = padded_row_size * height;
+
+    BMPFileHeader file_header;
+    BMPInfoHeader info_header;
+
+    info_header.width = width;
+    info_header.height = height; // Positive for bottom-up DIB
+    info_header.size_image = image_size;
+    file_header.file_size = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader) + image_size;
+
+    // Write headers
+    file.write(reinterpret_cast<const char*>(&file_header), sizeof(file_header));
+    file.write(reinterpret_cast<const char*>(&info_header), sizeof(info_header));
+
+    // Write pixel data (BMP expects BGR and bottom-up)
+    const uint8_t* src_data = static_cast<const uint8_t*>(data);
+    
+    // Padding bytes for row alignment
+    const uint8_t padding[4] = {0, 0, 0, 0};
+    const int padding_size = padded_row_size - (width * bytes_per_pixel);
+    
+    // Write rows in reverse order (bottom-up for BMP)
+    for (int y = height - 1; y >= 0; y--) {
+        const uint8_t* row_data = src_data + (y * row_pitch);
+        
+        for (int x = 0; x < width; x++) {
+            uint8_t bgr[3];
+            
+            // Convert based on actual format (BMP always expects BGR order)
+            if (format == 28) { // DXGI_FORMAT_R8G8B8A8_UNORM
+                const uint8_t* pixel = row_data + (x * 4);
+                // RGBA -> BGR
+                bgr[0] = pixel[2]; // Blue = source Red
+                bgr[1] = pixel[1]; // Green = source Green  
+                bgr[2] = pixel[0]; // Red = source Blue
+            } else if (format == 87) { // DXGI_FORMAT_B8G8R8A8_UNORM
+                const uint8_t* pixel = row_data + (x * 4);
+                // BGRA -> BGR (just copy BGR, skip A)
+                bgr[0] = pixel[0]; // Blue = source Blue
+                bgr[1] = pixel[1]; // Green = source Green  
+                bgr[2] = pixel[2]; // Red = source Red
+            } else if (format == 24) { // DXGI_FORMAT_R10G10B10A2_UNORM
+                // 10-bit per channel format packed in 32 bits
+                const uint32_t* pixel32 = reinterpret_cast<const uint32_t*>(row_data + (x * 4));
+                uint32_t packed = *pixel32;
+                
+                // Extract 10-bit components and convert to 8-bit
+                uint32_t r = (packed & 0x3FF);        // Bits 0-9: Red
+                uint32_t g = (packed >> 10) & 0x3FF;  // Bits 10-19: Green  
+                uint32_t b = (packed >> 20) & 0x3FF;  // Bits 20-29: Blue
+                // Alpha is bits 30-31, but we ignore it for BMP
+                
+                // Convert 10-bit (0-1023) to 8-bit (0-255)
+                bgr[0] = static_cast<uint8_t>((b * 255) / 1023); // Blue
+                bgr[1] = static_cast<uint8_t>((g * 255) / 1023); // Green
+                bgr[2] = static_cast<uint8_t>((r * 255) / 1023); // Red
+            } else {
+                // Default case - assume RGBA format
+                const uint8_t* pixel = row_data + (x * 4);
+                bgr[0] = pixel[2]; // Blue = source Red
+                bgr[1] = pixel[1]; // Green = source Green  
+                bgr[2] = pixel[0]; // Red = source Blue
+            }
+            
+            file.write(reinterpret_cast<const char*>(bgr), 3);
+        }
+        
+        // Add padding to align row to 4 bytes
+        if (padding_size > 0) {
+            file.write(reinterpret_cast<const char*>(padding), padding_size);
+        }
+    }
+
+    file.close();
+    return true;
+}
+
+bool D3D12Renderer::take_screenshot(const std::string& filename) {
+    if (!m_initialized || !g_device || !m_swap_chain) {
+        return false;
+    }
+
+    m_mutex.lock();
+
+    // Get current back buffer
+    UINT current_buffer_index = 0;
+    if (auto swap_chain3 = m_swap_chain) {
+        current_buffer_index = swap_chain3->GetCurrentBackBufferIndex();
+    }
+
+    ID3D12Resource* back_buffer = m_rtv_buffers[current_buffer_index];
+    if (!back_buffer) {
+        m_mutex.unlock();
+        return false;
+    }
+
+    // Get back buffer description
+    D3D12_RESOURCE_DESC back_buffer_desc = back_buffer->GetDesc();
+    
+    // Create readback buffer (CPU accessible)
+    D3D12_HEAP_PROPERTIES heap_props = {};
+    heap_props.Type = D3D12_HEAP_TYPE_READBACK;
+    heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+    heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+    // Calculate required size for readback buffer
+    UINT64 required_size = 0;
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+    UINT num_rows;
+    UINT64 row_size_in_bytes;
+    
+    g_device->GetCopyableFootprints(&back_buffer_desc, 0, 1, 0, &footprint, &num_rows, &row_size_in_bytes, &required_size);
+
+    D3D12_RESOURCE_DESC readback_desc = {};
+    readback_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    readback_desc.Width = required_size;
+    readback_desc.Height = 1;
+    readback_desc.DepthOrArraySize = 1;
+    readback_desc.MipLevels = 1;
+    readback_desc.Format = DXGI_FORMAT_UNKNOWN;
+    readback_desc.SampleDesc.Count = 1;
+    readback_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    readback_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+    ID3D12Resource* readback_buffer = nullptr;
+    HRESULT hr = g_device->CreateCommittedResource(
+        &heap_props,
+        D3D12_HEAP_FLAG_NONE,
+        &readback_desc,
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        nullptr,
+        IID_PPV_ARGS(&readback_buffer)
+    );
+
+    if (FAILED(hr)) {
+        readback_buffer->Release();
+        m_mutex.unlock();
+        return false;
+    }
+
+    // Create temporary command allocator and list for screenshot
+    ID3D12CommandAllocator* screenshot_allocator = nullptr;
+    ID3D12GraphicsCommandList* screenshot_list = nullptr;
+
+    hr = g_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&screenshot_allocator));
+    if (FAILED(hr)) {
+        readback_buffer->Release();
+        m_mutex.unlock();
+        return false;
+    }
+
+    hr = g_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, screenshot_allocator, nullptr, IID_PPV_ARGS(&screenshot_list));
+    if (FAILED(hr)) {
+        screenshot_allocator->Release();
+        readback_buffer->Release();
+        m_mutex.unlock();
+        return false;
+    }
+
+    // Transition back buffer to copy source
+    D3D12_RESOURCE_BARRIER barrier = {};
+    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    barrier.Transition.pResource = back_buffer;
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+
+    screenshot_list->ResourceBarrier(1, &barrier);
+
+    // Copy from back buffer to readback buffer
+    D3D12_TEXTURE_COPY_LOCATION src_location = {};
+    src_location.pResource = back_buffer;
+    src_location.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    src_location.SubresourceIndex = 0;
+
+    D3D12_TEXTURE_COPY_LOCATION dst_location = {};
+    dst_location.pResource = readback_buffer;
+    dst_location.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    dst_location.PlacedFootprint = footprint;
+
+    screenshot_list->CopyTextureRegion(&dst_location, 0, 0, 0, &src_location, nullptr);
+
+    // Transition back buffer back to render target state
+    barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    screenshot_list->ResourceBarrier(1, &barrier);
+
+    // Execute the commands
+    screenshot_list->Close();
+    m_command_queue->ExecuteCommandLists(1, reinterpret_cast<ID3D12CommandList* const*>(&screenshot_list));
+
+    // Wait for completion
+    const auto fence_value = ++g_fence_value;
+    m_command_queue->Signal(g_fence, fence_value);
+    if (g_fence->GetCompletedValue() < fence_value) {
+        g_fence->SetEventOnCompletion(fence_value, g_fence_event);
+        WaitForSingleObject(g_fence_event, INFINITE);
+    }
+
+    // Map the readback buffer and save to file
+    void* mapped_data = nullptr;
+    hr = readback_buffer->Map(0, nullptr, &mapped_data);
+    if (SUCCEEDED(hr)) {
+        // Generate filename if not provided
+        std::string final_filename = filename;
+        if (final_filename.empty()) {
+            // Get current time for filename
+            auto now = std::chrono::system_clock::now();
+            auto time_t = std::chrono::system_clock::to_time_t(now);
+            std::tm tm_buf;
+            localtime_s(&tm_buf, &time_t);
+            std::stringstream ss;
+            ss << "screenshot_" << std::put_time(&tm_buf, "%Y%m%d_%H%M%S") << ".bmp";
+            final_filename = ss.str();
+        }
+
+        // Save as simple BMP file
+        bool save_success = save_screenshot_as_bmp(
+            final_filename,
+            mapped_data,
+            static_cast<int>(footprint.Footprint.Width),
+            static_cast<int>(footprint.Footprint.Height),
+            static_cast<int>(footprint.Footprint.RowPitch),
+            back_buffer_desc.Format
+        );
+
+        readback_buffer->Unmap(0, nullptr);
+
+        // Note: save_success indicates if BMP was written successfully
+    }
+
+    // Cleanup
+    screenshot_list->Release();
+    screenshot_allocator->Release();
+    readback_buffer->Release();
+
+    m_mutex.unlock();
+    return SUCCEEDED(hr);
 }
 
 // Private helper methods
@@ -415,8 +733,17 @@ bool D3D12Renderer::setup_render_target_heap() {
 }
 
 void D3D12Renderer::setup_window_hook(HWND window) {
-    OriginalWndProc = reinterpret_cast<WNDPROC>(
-        SetWindowLongPtr(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WndProc)));
+    if (!window) return;
+    if (m_window && m_window != window) {
+        // Optionally: unhook previous window if needed
+        if (m_originalWndProc) {
+            SetWindowLongPtr(m_window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(m_originalWndProc));
+        }
+    }
+    m_window = window;
+    m_originalWndProc = reinterpret_cast<WNDPROC>(
+        SetWindowLongPtr(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WndProc))
+    );
 }
 
 void D3D12Renderer::setup_nuklear_fonts() {
@@ -475,4 +802,4 @@ void D3D12Renderer::cleanup_device_resources() {
         g_device->Release();
         g_device = nullptr;
     }
-}
+} 

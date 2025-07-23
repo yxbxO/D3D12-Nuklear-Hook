@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.13.35931.197 d17.13
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "D3D12-Nuklear-Hook", "D3D12-Nuklear-Hook\D3D12-Nuklear-Hook.vcxproj", "{29C8A5A5-AE8C-4A48-A0ED-B4B013F8733E}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "D3D-Nuklear-Hook", "D3D-Nuklear-Hook\D3D-Nuklear-Hook.vcxproj", "{29C8A5A5-AE8C-4A48-A0ED-B4B013F8733E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
